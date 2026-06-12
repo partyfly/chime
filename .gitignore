@@ -1,0 +1,6 @@
+# Build artifacts
+Chime.app/
+Chime
+
+# macOS
+.DS_Store

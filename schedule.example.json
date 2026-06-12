@@ -1,0 +1,20 @@
+[
+  { "start": "07:00", "end": "09:00", "emoji": "🌅", "title": "Morning",
+    "task": "Wake up, plan the day; light reading, no heavy decisions yet", "notify": true },
+  { "start": "09:00", "end": "12:30", "emoji": "💻", "title": "Deep work",
+    "task": "Hardest task first; notifications off; single-task this block", "notify": true },
+  { "start": "12:30", "end": "13:30", "emoji": "🍽️", "title": "Lunch",
+    "task": "Step away from the screen", "notify": false },
+  { "start": "13:30", "end": "17:00", "emoji": "🔨", "title": "Focus",
+    "task": "Second work block; ship something concrete before you stop", "notify": true },
+  { "start": "17:00", "end": "18:00", "emoji": "🧘", "title": "Exercise",
+    "task": "Move your body; the longest half-life is your health", "notify": false },
+  { "start": "18:00", "end": "19:30", "emoji": "🍜", "title": "Dinner & break",
+    "task": "Eat, rest, touch grass", "notify": false },
+  { "start": "19:30", "end": "22:00", "emoji": "📚", "title": "Learn & create",
+    "task": "Reading, writing, side projects; the compounding hours", "notify": true },
+  { "start": "22:00", "end": "23:00", "emoji": "🌙", "title": "Wind down",
+    "task": "No screens; prep tomorrow's top task", "notify": true },
+  { "start": "23:00", "end": "07:00", "emoji": "💤", "title": "Sleep",
+    "task": "Rest is a strategy, not a gap", "notify": false }
+]
