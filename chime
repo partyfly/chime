@@ -1,0 +1,175 @@
+#!/usr/bin/env python3
+"""chime — query your Chime schedule from the shell or an AI agent.
+
+The schedule is the single source of truth at ~/.config/chime/schedule.json
+(the same file the desktop widget reads). This CLI is read-only: it tells you
+what block you're in, what's next, and the full day — in human or --json form.
+To CHANGE the schedule, edit that JSON file directly; the widget hot-reloads
+it within 30s. Agents: see the bundled skill at .claude/skills/chime/.
+
+Usage:
+  chime                 # same as `chime status`
+  chime status [--json] # current block, time left, and what's next
+  chime next  [--json]  # the upcoming block and when it starts
+  chime today [--json]  # the full day, current block marked
+  chime --config PATH … # use a different schedule file
+
+Exit code 0 always (free time is not an error).
+"""
+import json
+import os
+import sys
+from datetime import datetime
+
+HOME = os.path.expanduser("~")
+SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+DEFAULT_CONFIG = os.path.join(HOME, ".config", "chime", "schedule.json")
+FALLBACK = os.path.join(SCRIPT_DIR, "schedule.example.json")
+
+
+def load(path):
+    """Load the user's schedule, falling back to the bundled example."""
+    for candidate in (path, FALLBACK):
+        try:
+            with open(candidate) as f:
+                phases = json.load(f)
+            if phases and all("start" in p and "end" in p for p in phases):
+                return phases
+        except (OSError, ValueError):
+            continue
+    return []
+
+
+def hm(s):
+    h, m = s.split(":")
+    return int(h) * 60 + int(m)
+
+
+def fmt(mins):
+    return f"{mins // 60}h{mins % 60:02d}m" if mins >= 60 else f"{mins}m"
+
+
+def now_minutes():
+    n = datetime.now()
+    return n.hour * 60 + n.minute, n.strftime("%H:%M")
+
+
+def current_block(phases, nm):
+    for p in phases:
+        s, e = hm(p["start"]), hm(p["end"])
+        inside = (s <= nm < e) if s <= e else (nm >= s or nm < e)
+        if inside:
+            return p, ((e - nm) % 1440 + 1440) % 1440
+    return None, None
+
+
+def next_block(phases, nm):
+    best = None
+    for p in phases:
+        dt = ((hm(p["start"]) - nm) % 1440 + 1440) % 1440
+        if dt == 0:
+            continue
+        if best is None or dt < best[1]:
+            best = (p, dt)
+    return best
+
+
+def status_obj(phases, nm, clock):
+    cur, rem = current_block(phases, nm)
+    nxt = next_block(phases, nm)
+    obj = {"now": clock, "free": cur is None, "current": None, "next": None}
+    if cur is not None:
+        obj["current"] = {**cur, "remaining_minutes": rem, "remaining": fmt(rem)}
+    if nxt is not None:
+        p, dt = nxt
+        obj["next"] = {**p, "starts_in_minutes": dt, "starts_in": fmt(dt)}
+    return obj
+
+
+def print_status(phases, nm, clock, as_json):
+    obj = status_obj(phases, nm, clock)
+    if as_json:
+        print(json.dumps(obj, ensure_ascii=False, indent=2))
+        return
+    if obj["current"]:
+        c = obj["current"]
+        print(f"{c['emoji']}  {c['title']}   ({c['start']}–{c['end']} · {c['remaining']} left)")
+        for seg in str(c.get("task", "")).split(";"):
+            seg = seg.strip()
+            if seg:
+                print(f"   · {seg}")
+    else:
+        print(f"🐦  Free time   (now {clock})")
+    if obj["next"]:
+        n = obj["next"]
+        print(f"→  next: {n['emoji']} {n['title']} at {n['start']} (in {n['starts_in']})")
+
+
+def print_next(phases, nm, as_json):
+    nxt = next_block(phases, nm)
+    if as_json:
+        if nxt is None:
+            print("null")
+        else:
+            p, dt = nxt
+            print(json.dumps({**p, "starts_in_minutes": dt, "starts_in": fmt(dt)},
+                             ensure_ascii=False, indent=2))
+        return
+    if nxt is None:
+        print("No upcoming block.")
+        return
+    p, dt = nxt
+    print(f"{p['emoji']}  {p['title']} at {p['start']} (in {fmt(dt)})")
+
+
+def print_today(phases, nm, as_json):
+    cur, _ = current_block(phases, nm)
+    if as_json:
+        out = []
+        for p in phases:
+            is_now = cur is not None and p["start"] == cur["start"] and p["title"] == cur["title"]
+            out.append({**p, "current": is_now})
+        print(json.dumps(out, ensure_ascii=False, indent=2))
+        return
+    for p in phases:
+        is_now = cur is not None and p["start"] == cur["start"] and p["title"] == cur["title"]
+        mark = "▶︎" if is_now else " "
+        print(f"{mark} {p['start']}–{p['end']}  {p['emoji']} {p['title']}")
+
+
+def main(argv):
+    args = list(argv[1:])
+    config = DEFAULT_CONFIG
+    if "--config" in args:
+        i = args.index("--config")
+        try:
+            config = args[i + 1]
+            del args[i:i + 2]
+        except IndexError:
+            print("error: --config needs a path", file=sys.stderr)
+            return 2
+    as_json = "--json" in args
+    args = [a for a in args if a != "--json"]
+    cmd = args[0] if args else "status"
+
+    phases = load(config)
+    if not phases:
+        print("error: no valid schedule found. Edit ~/.config/chime/schedule.json",
+              file=sys.stderr)
+        return 1
+
+    nm, clock = now_minutes()
+    if cmd == "status":
+        print_status(phases, nm, clock, as_json)
+    elif cmd == "next":
+        print_next(phases, nm, as_json)
+    elif cmd == "today":
+        print_today(phases, nm, as_json)
+    else:
+        print(__doc__)
+        return 2
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv))

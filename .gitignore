@@ -1,6 +1,5 @@
-# Build artifacts
+# Build artifacts (the lowercase `chime` CLI is source — it IS tracked)
 Chime.app/
-Chime
 
 # macOS
 .DS_Store

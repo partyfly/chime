@@ -4,11 +4,12 @@ set -e
 cd "$(dirname "$0")"
 
 APP="Chime.app"
-swiftc -O -swift-version 5 Chime.swift -o Chime
 
 rm -rf "$APP"
 mkdir -p "$APP/Contents/MacOS"
-mv Chime "$APP/Contents/MacOS/Chime"
+# Compile straight into the bundle. Don't emit a root-level `Chime` binary:
+# on case-insensitive macOS filesystems it would clobber the `chime` CLI.
+swiftc -O -swift-version 5 Chime.swift -o "$APP/Contents/MacOS/Chime"
 
 cat > "$APP/Contents/Info.plist" << 'PLIST'
 <?xml version="1.0" encoding="UTF-8"?>

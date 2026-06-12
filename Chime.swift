@@ -97,6 +97,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         get { defaults.object(forKey: "expanded") as? Bool ?? true }
         set { defaults.set(newValue, forKey: "expanded") }
     }
+    var agendaWindow: NSWindow?   // separate pop-up window listing the full day
 
     let configDir = FileManager.default.homeDirectoryForCurrentUser
         .appendingPathComponent(".config/chime", isDirectory: true)
@@ -211,6 +212,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             lastNotifiedKey = ""
         }
         rebuildUI()
+        if agendaWindow != nil { refreshAgendaWindow() }
     }
 
     func sendNotification(_ p: Phase) {
@@ -270,6 +272,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             header.spacing = 8
             let emoji = makeLabel(cur?.0.emoji ?? "🐦", size: 26)
             let title = makeLabel(cur?.0.title ?? "Free time", size: 14, weight: .bold)
+            let agendaBtn = NSButton(title: "📋", target: self, action: #selector(toggleAgenda))
+            agendaBtn.isBordered = false
+            agendaBtn.font = .systemFont(ofSize: 11)
+            agendaBtn.toolTip = "Show the full day in a separate window"
             let collapseBtn = NSButton(title: "➖", target: self, action: #selector(toggleCollapse))
             collapseBtn.isBordered = false
             collapseBtn.font = .systemFont(ofSize: 11)
@@ -277,6 +283,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             header.addArrangedSubview(emoji)
             header.addArrangedSubview(title)
             header.addArrangedSubview(NSView())
+            header.addArrangedSubview(agendaBtn)
             header.addArrangedSubview(collapseBtn)
             stack.addArrangedSubview(header)
 
@@ -382,13 +389,85 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     }
 
     func windowDidMove(_ notification: Notification) {
+        guard notification.object as? NSWindow === window else { return }
         defaults.set(Double(window.frame.origin.x), forKey: "originX")
         defaults.set(Double(window.frame.origin.y), forKey: "originY")
+    }
+
+    func windowWillClose(_ notification: Notification) {
+        if notification.object as? NSWindow === agendaWindow { agendaWindow = nil }
     }
 
     // MARK: actions
 
     @objc func toggleCollapse() { expanded.toggle(); rebuildUI() }
+
+    @objc func toggleAgenda() {
+        if let w = agendaWindow { w.close(); agendaWindow = nil; return }
+        showAgendaWindow()
+    }
+
+    func showAgendaWindow() {
+        let w = NSWindow(
+            contentRect: NSRect(x: 0, y: 0, width: 320, height: 140),
+            styleMask: [.titled, .closable],
+            backing: .buffered, defer: false)
+        w.title = "Today"
+        w.isMovableByWindowBackground = true
+        w.level = .floating
+        w.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
+        w.delegate = self
+        w.isReleasedWhenClosed = false
+        agendaWindow = w
+        refreshAgendaWindow()
+        positionAgenda()
+        w.makeKeyAndOrderFront(nil)
+    }
+
+    func refreshAgendaWindow() {
+        guard let w = agendaWindow else { return }
+        let cur = currentPhase(nowMinutes())?.0
+        let stack = NSStackView()
+        stack.orientation = .vertical
+        stack.alignment = .leading
+        stack.spacing = 5
+        stack.edgeInsets = NSEdgeInsets(top: 16, left: 18, bottom: 16, right: 18)
+        stack.translatesAutoresizingMaskIntoConstraints = false
+        for p in phases {
+            let isNow = cur != nil && p.start == cur!.start && p.title == cur!.title
+            let row = makeLabel("\(isNow ? "▶︎" : "      ") \(p.start)–\(p.end)   \(p.emoji) \(p.title)",
+                                size: 13,
+                                weight: isNow ? .bold : .regular,
+                                color: isNow ? .controlAccentColor : .labelColor)
+            row.maximumNumberOfLines = 1
+            row.lineBreakMode = .byTruncatingTail
+            stack.addArrangedSubview(row)
+        }
+        let host = NSView()
+        host.addSubview(stack)
+        NSLayoutConstraint.activate([
+            stack.topAnchor.constraint(equalTo: host.topAnchor),
+            stack.bottomAnchor.constraint(equalTo: host.bottomAnchor),
+            stack.leadingAnchor.constraint(equalTo: host.leadingAnchor),
+            stack.trailingAnchor.constraint(equalTo: host.trailingAnchor),
+        ])
+        let fit = stack.fittingSize
+        w.setContentSize(NSSize(width: max(300, fit.width), height: fit.height))
+        w.contentView = host
+    }
+
+    func positionAgenda() {
+        guard let w = agendaWindow else { return }
+        let card = window.frame
+        var x = card.minX - w.frame.width - 12
+        var y = card.maxY - w.frame.height
+        if let vf = NSScreen.main?.visibleFrame {
+            if x < vf.minX + 8 { x = card.maxX + 12 }       // no room on the left → go right
+            y = min(max(y, vf.minY + 8), vf.maxY - w.frame.height - 8)
+        }
+        w.setFrameOrigin(NSPoint(x: x, y: y))
+    }
+
     @objc func editSchedule() { writeDefaultConfigIfMissing(); NSWorkspace.shared.open(configURL) }
     @objc func reloadSchedule() { loadSchedule(); lastNotifiedKey = ""; tick() }
     @objc func toggleLogin() {
