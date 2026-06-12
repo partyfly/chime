@@ -26,9 +26,10 @@ Most time-management apps make you *open them* to see what's next. Chime inverts
 - **Collapse to a pill** — shrinks to just an emoji + countdown; click to expand
 - **Native notifications** — chimes when each block begins (per-block opt-out)
 - **Plain-JSON schedule** — edit one file; the app hot-reloads it within 30s
+- **Agent-ready** — a `chime` CLI + a bundled Claude Code skill let AI agents read your day and act on it ([details](#agent-orchestration))
 - **Follows every Space**, adapts to light/dark mode, frosted-glass look
 - **Launch at login** — one click
-- **Zero dependencies** — a single Swift file, ~500 lines, builds with `swiftc`
+- **Zero dependencies** — a single Swift file, builds with `swiftc`
 
 ## Install
 
@@ -81,6 +82,30 @@ Save the file and the app reloads within 30 seconds (or right-click → **Reload
 ## Launch at login
 
 Right-click → **Launch at login**. This writes `~/Library/LaunchAgents/com.partyfly.chime.plist`; click again to remove it.
+
+## Agent orchestration
+
+Chime's schedule is a plain JSON file — a machine-readable single source of truth that an AI agent or a shell script can read and act on. The widget is just one view of it.
+
+**`chime` CLI** (read-only, ships in this repo). Run `./chime` from the repo, or `ln -s "$PWD/chime" /usr/local/bin/chime` to use it anywhere:
+
+```sh
+chime status          # current block, time left, what's next
+chime status --json   # same, machine-readable
+chime next --json     # the upcoming block and when it starts
+chime today --json    # the full day, current block flagged
+```
+
+```jsonc
+// chime status --json
+{ "now": "14:32", "free": false,
+  "current": { "title": "Focus", "remaining": "2h28m", "task": "...", ... },
+  "next":    { "title": "Exercise", "starts_in": "2h28m", ... } }
+```
+
+**Bundled Claude Code skill.** This repo includes `.claude/skills/chime/` — clone it and your Claude Code (or any agent that reads project skills) can answer "what should I do now?", manage your blocks, and **act based on the current block**: stay terse during a deep-work block, proactively help draft during a writing block, prep you for the next one. It also pairs with cron or scheduled AI tasks — a morning job can call `chime today` to learn the shape of your day before deciding what to run.
+
+The schedule encodes your intent for the day; agents read it and adapt, rather than nagging you with alarms.
 
 ## How it works
 

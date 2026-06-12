@@ -32,5 +32,9 @@ PLIST
 # ad-hoc sign so notifications & TCC behave
 codesign --force --deep --sign - "$APP" 2>/dev/null || true
 
+# make the agent CLI executable
+chmod +x chime 2>/dev/null || true
+
 echo "Built: $PWD/$APP"
 echo "Run:   open \"$PWD/$APP\""
+echo "CLI:   ./chime status   (symlink onto PATH to use anywhere)"

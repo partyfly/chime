@@ -26,9 +26,10 @@
 - **缩成药丸** — 只剩 emoji + 倒计时,点击展开
 - **系统通知** — 每个时间块开始时提醒(可逐块关闭)
 - **纯 JSON 日程** — 只改一个文件,App 在 30 秒内自动热重载
+- **面向 Agent** — 附带 `chime` CLI + 内置 Claude Code skill,让 AI agent 读取你的一天并据此行动([详情](#agent-编排))
 - **跟随所有桌面空间**(Space),适配深/浅色模式,毛玻璃质感
 - **开机自启** — 一键开启
-- **零依赖** — 单个 Swift 文件,约 500 行,`swiftc` 直接编译
+- **零依赖** — 单个 Swift 文件,`swiftc` 直接编译
 
 ## 安装
 
@@ -81,6 +82,30 @@ open Chime.app
 ## 开机自启
 
 右键 → **开机自启**。会写入 `~/Library/LaunchAgents/com.partyfly.chime.plist`;再点一次移除。
+
+## Agent 编排
+
+Chime 的日程是一个纯 JSON 文件——一份机器可读的单一事实源(single source of truth),AI agent 或 shell 脚本都能读取并据此行动。挂件只是它的一个视图。
+
+**`chime` CLI**(只读,随仓库附带)。在仓库里跑 `./chime`,或 `ln -s "$PWD/chime" /usr/local/bin/chime` 装到 PATH 后随处可用:
+
+```sh
+chime status          # 当前时间块、剩余时间、下一个是什么
+chime status --json   # 同上,机器可读
+chime next --json     # 下一个时间块及开始时间
+chime today --json    # 今天完整日程,标记当前块
+```
+
+```jsonc
+// chime status --json
+{ "now": "14:32", "free": false,
+  "current": { "title": "Focus", "remaining": "2h28m", "task": "...", ... },
+  "next":    { "title": "Exercise", "starts_in": "2h28m", ... } }
+```
+
+**内置 Claude Code skill。** 仓库包含 `.claude/skills/chime/`——clone 下来,你的 Claude Code(或任何读取项目 skill 的 agent)就能回答"我现在该做什么?"、管理时间块,并**基于当前时间块行动**:在深度工作块保持简洁、在写作块主动帮你起草、为下一个块提前准备。它也能和 cron 或定时 AI 任务配合——早晨的任务可以先 `chime today` 了解今天的结构,再决定跑什么。
+
+日程编码了你对一天的意图;agent 读取它并随之调整,而不是用闹钟反复打扰你。
 
 ## 实现原理
 
